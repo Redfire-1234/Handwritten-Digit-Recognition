@@ -10,6 +10,10 @@ import base64
 # Page configuration
 st.set_page_config(page_title="Handwritten Digit Recognition", layout="wide")
 
+# Initialize session state
+if 'canvas_image' not in st.session_state:
+    st.session_state.canvas_image = None
+
 # Load models with caching and error handling
 @st.cache_resource
 def load_models():
@@ -77,30 +81,40 @@ with tab2:
     with col1:
         # Fast HTML5 Canvas with JavaScript
         canvas_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
         <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
         #canvas {
-            border: 2px solid #4CAF50;
+            border: 3px solid #4CAF50;
             cursor: crosshair;
             background-color: black;
             border-radius: 8px;
+            display: block;
+            margin: 0 auto;
         }
         .canvas-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
+            text-align: center;
         }
         .btn-group {
             display: flex;
             gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
         }
         button {
-            padding: 10px 20px;
-            font-size: 14px;
+            padding: 12px 24px;
+            font-size: 15px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            transition: all 0.3s;
         }
         #clearBtn {
             background-color: #f44336;
@@ -108,30 +122,39 @@ with tab2:
         }
         #clearBtn:hover {
             background-color: #da190b;
+            transform: scale(1.05);
         }
-        #saveBtn {
+        #downloadBtn {
             background-color: #4CAF50;
             color: white;
         }
-        #saveBtn:hover {
+        #downloadBtn:hover {
             background-color: #45a049;
+            transform: scale(1.05);
+        }
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 14px;
+            min-height: 20px;
         }
         </style>
-
+        </head>
+        <body>
         <div class="canvas-container">
             <canvas id="canvas" width="280" height="280"></canvas>
             <div class="btn-group">
                 <button id="clearBtn">🗑️ Clear Canvas</button>
-                <button id="saveBtn">💾 Save Drawing</button>
+                <button id="downloadBtn">💾 Download Image</button>
             </div>
-            <div id="status" style="margin-top: 10px; font-weight: bold;"></div>
+            <div id="status"></div>
         </div>
 
         <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const clearBtn = document.getElementById('clearBtn');
-        const saveBtn = document.getElementById('saveBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
         const status = document.getElementById('status');
         
         let isDrawing = false;
@@ -149,16 +172,20 @@ with tab2:
         function startDrawing(e) {
             isDrawing = true;
             const rect = canvas.getBoundingClientRect();
-            lastX = e.clientX - rect.left;
-            lastY = e.clientY - rect.top;
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            lastX = (e.clientX - rect.left) * scaleX;
+            lastY = (e.clientY - rect.top) * scaleY;
         }
 
         function draw(e) {
             if (!isDrawing) return;
             
             const rect = canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const currentX = (e.clientX - rect.left) * scaleX;
+            const currentY = (e.clientY - rect.top) * scaleY;
             
             ctx.beginPath();
             ctx.moveTo(lastX, lastY);
@@ -176,19 +203,17 @@ with tab2:
         function clearCanvas() {
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            status.textContent = 'Canvas cleared!';
+            status.textContent = '✓ Canvas cleared!';
             status.style.color = '#666';
             setTimeout(() => status.textContent = '', 2000);
         }
 
-        function saveDrawing() {
-            const imageData = canvas.toDataURL('image/png');
-            // Send to Streamlit
-            window.parent.postMessage({
-                type: 'streamlit:setComponentValue',
-                data: imageData
-            }, '*');
-            status.textContent = '✓ Drawing saved! Click Predict below.';
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = 'digit_drawing.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            status.textContent = '✓ Image downloaded! Upload it below to predict.';
             status.style.color = '#4CAF50';
         }
 
@@ -227,68 +252,73 @@ with tab2:
 
         // Button events
         clearBtn.addEventListener('click', clearCanvas);
-        saveBtn.addEventListener('click', saveDrawing);
+        downloadBtn.addEventListener('click', downloadImage);
         </script>
+        </body>
+        </html>
         """
         
         # Render the canvas (loads instantly!)
-        canvas_result = components.html(canvas_html, height=400)
+        components.html(canvas_html, height=420, scrolling=False)
     
     with col2:
         st.markdown("### Instructions")
         st.write("1. **Draw** a digit (0-9) on canvas")
-        st.write("2. Click **💾 Save Drawing**")
-        st.write("3. Click **🔮 Predict** below")
-        st.write("4. Use **🗑️ Clear** to restart")
+        st.write("2. Click **💾 Download Image**")
+        st.write("3. **Upload** the downloaded image below")
+        st.write("4. Click **🔮 Predict**")
+        st.write("5. Use **🗑️ Clear** to restart")
         
         st.markdown("---")
         
-        # Predict button
-        predict_btn = st.button("🔮 Predict Drawn Digit", type="primary", use_container_width=True)
-        
-        # Get the canvas data from component
-        if predict_btn:
-            if canvas_result:
-                try:
-                    # Decode base64 image
-                    image_data = canvas_result.split(',')[1]
-                    image_bytes = base64.b64decode(image_data)
-                    image = Image.open(io.BytesIO(image_bytes))
-                    
-                    # Convert to grayscale
-                    image = image.convert('L')
-                    
-                    # Resize to 28x28
-                    image_resized = image.resize((28, 28), Image.LANCZOS)
-                    
-                    # Show processed image
-                    st.image(image_resized, caption="Processed (28x28)", width=150)
-                    
-                    # Predict
-                    img_array = np.array(image_resized)
-                    img_normalized = img_array.reshape(1, -1) / 255.0
-                    img_pca = pca.transform(img_normalized)
-                    prediction = knn.predict(img_pca)
-                    
-                    # Show result
-                    st.markdown("### Result")
-                    st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{prediction[0]}</h1>", 
-                               unsafe_allow_html=True)
-                    st.success(f"Predicted: **{prediction[0]}**")
-                    
-                except Exception as e:
-                    st.error(f"Error processing drawing: {str(e)}")
-            else:
-                st.warning("⚠️ Please draw and save your digit first!")
-        
-        # Alternative: Manual predict button with file uploader
-        st.markdown("---")
-        st.markdown("### 📎 Or Upload Drawing")
-        drawn_file = st.file_uploader("Upload hand-drawn digit", type=["png", "jpg", "jpeg"], key="drawn")
+        # Upload the downloaded drawing
+        st.markdown("### 📤 Upload Your Drawing")
+        drawn_file = st.file_uploader("Upload the downloaded image", type=["png", "jpg", "jpeg"], key="canvas_upload")
         
         if drawn_file:
             try:
+                # Process the drawing
                 image = Image.open(drawn_file).convert("L")
+                
+                # Resize to 28x28
+                image_resized = image.resize((28, 28), Image.LANCZOS)
+                
+                col_a, col_b = st.columns(2)
+                
+                with col_a:
+                    st.image(image, caption="Your Drawing", width=150)
+                
+                with col_b:
+                    st.image(image_resized, caption="Processed (28x28)", width=150)
+                
+                # Predict button
+                if st.button("🔮 Predict Drawn Digit", type="primary", use_container_width=True):
+                    with st.spinner("Analyzing..."):
+                        # Predict
+                        img_array = np.array(image_resized)
+                        img_normalized = img_array.reshape(1, -1) / 255.0
+                        img_pca = pca.transform(img_normalized)
+                        prediction = knn.predict(img_pca)
+                        
+                        # Show result
+                        st.markdown("### 🎯 Prediction Result")
+                        st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{prediction[0]}</h1>", 
+                                   unsafe_allow_html=True)
+                        st.success(f"The model predicts: **{prediction[0]}**")
+                        
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+        
+        # Alternative: Direct upload
+        st.markdown("---")
+        st.markdown("### 📎 Or Upload Any Image")
+        st.caption("Draw on paper/app and upload directly")
+        
+        alt_file = st.file_uploader("Upload digit image", type=["png", "jpg", "jpeg"], key="alt_upload")
+        
+        if alt_file:
+            try:
+                image = Image.open(alt_file).convert("L")
                 
                 # Invert if needed
                 img_array = np.array(image)
@@ -297,17 +327,18 @@ with tab2:
                 
                 image = image.resize((28, 28))
                 
-                st.image(image, caption="Uploaded (28x28)", width=150)
+                st.image(image, caption="Processed (28x28)", width=150)
                 
-                # Predict
-                img = np.array(image).reshape(1, -1) / 255.0
-                img_pca = pca.transform(img)
-                prediction = knn.predict(img_pca)
-                
-                st.markdown("### Result")
-                st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{prediction[0]}</h1>", 
-                           unsafe_allow_html=True)
-                st.success(f"Predicted: **{prediction[0]}**")
+                if st.button("🔮 Predict", type="primary", key="alt_predict", use_container_width=True):
+                    # Predict
+                    img = np.array(image).reshape(1, -1) / 255.0
+                    img_pca = pca.transform(img)
+                    prediction = knn.predict(img_pca)
+                    
+                    st.markdown("### 🎯 Result")
+                    st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{prediction[0]}</h1>", 
+                               unsafe_allow_html=True)
+                    st.success(f"Predicted: **{prediction[0]}**")
             except Exception as e:
                 st.error(f"Error: {str(e)}")
 
@@ -330,23 +361,24 @@ with st.sidebar:
     - Size: 28×28 pixels
     """)
     
-    st.header("🎯 Tips")
+    st.header("🎯 Drawing Tips")
     st.write("""
     - Draw clearly and centered
     - Use thick, bold strokes
+    - Fill the canvas area
     - White on black background
-    - Click Save before Predict
     """)
     
     # Model status
-    st.header("🔧 Status")
+    st.header("🔧 Model Status")
     if os.path.exists("knn_model.pkl") and os.path.exists("pca_model.pkl"):
         st.success("✓ Models loaded")
     else:
         st.error("✗ Models missing")
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: gray;'>Built with Streamlit</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>Built with Streamlit | MNIST Recognition</p>", unsafe_allow_html=True)
+
 
 # import streamlit as st
 # import streamlit.components.v1 as components
@@ -593,37 +625,43 @@ st.markdown("<p style='text-align: center; color: gray;'>Built with Streamlit</p
         
 #         st.markdown("---")
         
+#         # Predict button
+#         predict_btn = st.button("🔮 Predict Drawn Digit", type="primary", use_container_width=True)
+        
 #         # Get the canvas data from component
-#         if canvas_result:
-#             try:
-#                 # Decode base64 image
-#                 image_data = canvas_result.split(',')[1]
-#                 image_bytes = base64.b64decode(image_data)
-#                 image = Image.open(io.BytesIO(image_bytes))
-                
-#                 # Convert to grayscale
-#                 image = image.convert('L')
-                
-#                 # Resize to 28x28
-#                 image_resized = image.resize((28, 28), Image.LANCZOS)
-                
-#                 # Show processed image
-#                 st.image(image_resized, caption="Processed (28x28)", width=150)
-                
-#                 # Predict
-#                 img_array = np.array(image_resized)
-#                 img_normalized = img_array.reshape(1, -1) / 255.0
-#                 img_pca = pca.transform(img_normalized)
-#                 prediction = knn.predict(img_pca)
-                
-#                 # Show result
-#                 st.markdown("### Result")
-#                 st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{prediction[0]}</h1>", 
-#                            unsafe_allow_html=True)
-#                 st.success(f"Predicted: **{prediction[0]}**")
-                
-#             except Exception as e:
-#                 st.info("Draw and save your digit to see prediction")
+#         if predict_btn:
+#             if canvas_result:
+#                 try:
+#                     # Decode base64 image
+#                     image_data = canvas_result.split(',')[1]
+#                     image_bytes = base64.b64decode(image_data)
+#                     image = Image.open(io.BytesIO(image_bytes))
+                    
+#                     # Convert to grayscale
+#                     image = image.convert('L')
+                    
+#                     # Resize to 28x28
+#                     image_resized = image.resize((28, 28), Image.LANCZOS)
+                    
+#                     # Show processed image
+#                     st.image(image_resized, caption="Processed (28x28)", width=150)
+                    
+#                     # Predict
+#                     img_array = np.array(image_resized)
+#                     img_normalized = img_array.reshape(1, -1) / 255.0
+#                     img_pca = pca.transform(img_normalized)
+#                     prediction = knn.predict(img_pca)
+                    
+#                     # Show result
+#                     st.markdown("### Result")
+#                     st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{prediction[0]}</h1>", 
+#                                unsafe_allow_html=True)
+#                     st.success(f"Predicted: **{prediction[0]}**")
+                    
+#                 except Exception as e:
+#                     st.error(f"Error processing drawing: {str(e)}")
+#             else:
+#                 st.warning("⚠️ Please draw and save your digit first!")
         
 #         # Alternative: Manual predict button with file uploader
 #         st.markdown("---")
@@ -691,3 +729,4 @@ st.markdown("<p style='text-align: center; color: gray;'>Built with Streamlit</p
 
 # st.markdown("---")
 # st.markdown("<p style='text-align: center; color: gray;'>Built with Streamlit</p>", unsafe_allow_html=True)
+
