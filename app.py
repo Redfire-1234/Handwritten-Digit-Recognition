@@ -37,9 +37,9 @@ st.write("Predict handwritten digits using our trained KNN model!")
 # Create tabs
 tab1, tab2 = st.tabs(["📤 Upload Image", "✏️ Draw Digit"])
 
-# ============================================================================
+
 # TAB 1: Upload Image
-# ============================================================================
+
 with tab1:
     st.subheader("Upload a handwritten digit image")
     uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
@@ -66,9 +66,9 @@ with tab1:
         except Exception as e:
             st.error(f"Error: {str(e)}")
 
-# ============================================================================
+
 # TAB 2: Draw Digit (Compact Layout)
-# ============================================================================
+
 with tab2:
     # Info expander (collapsible)
     with st.expander("ℹ️ How to Use", expanded=False):
@@ -279,9 +279,9 @@ with tab2:
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-# ============================================================================
+
 # Sidebar
-# ============================================================================
+
 with st.sidebar:
     st.header("ℹ️ Model Info")
     st.write("""
