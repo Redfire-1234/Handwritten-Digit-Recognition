@@ -140,17 +140,14 @@ python mnist_classification.py
 ## 🔍 Implementation Details
 
 ### Project Structure
-```
+
 mnist-classification/
 ├── mnist_classification.ipynb    # Main Jupyter notebook
 ├── mnist_classification.py       # Python script version
 ├── README.md                      # This file
 ├── requirements.txt               # Python dependencies
-└── results/                       # Output directory
-    ├── confusion_matrices/        # Confusion matrix visualizations
-    ├── misclassified_samples/     # Error analysis plots
-    └── performance_comparison.png # Model comparison chart
-```
+
+
 
 ### Code Organization
 
