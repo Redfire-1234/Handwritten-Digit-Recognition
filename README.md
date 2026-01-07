@@ -200,7 +200,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 👤 Author
 
-Aman Ansari - [Your GitHub Profile](https://github.com/Redfire-1234)
+Aman Ansari - [GitHub Profile](https://github.com/Redfire-1234)
 
 ## 🙏 Acknowledgments
 
