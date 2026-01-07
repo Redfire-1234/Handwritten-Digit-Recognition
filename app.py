@@ -3,7 +3,6 @@ import joblib
 import numpy as np
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
-import cv2
 
 # Load models
 knn = joblib.load("knn_model.pkl")
@@ -81,17 +80,25 @@ with tab2:
                 # Get the drawn image
                 img_data = canvas_result.image_data
                 
+                # Convert RGBA to grayscale using PIL instead of OpenCV
+                # Extract RGB channels (ignore alpha)
+                img_rgb = img_data[:, :, :3].astype('uint8')
+                
+                # Convert to PIL Image
+                pil_img = Image.fromarray(img_rgb)
+                
                 # Convert to grayscale
-                img_gray = cv2.cvtColor(img_data.astype('uint8'), cv2.COLOR_RGBA2GRAY)
+                img_gray = pil_img.convert('L')
                 
                 # Resize to 28x28
-                img_resized = cv2.resize(img_gray, (28, 28), interpolation=cv2.INTER_AREA)
+                img_resized = img_gray.resize((28, 28), Image.LANCZOS)
                 
                 # Display processed image
                 st.image(img_resized, caption="Processed Image (28x28)", width=150)
                 
-                # Preprocess for model
-                img_normalized = img_resized.reshape(1, -1) / 255.0
+                # Convert to numpy array and preprocess for model
+                img_array = np.array(img_resized)
+                img_normalized = img_array.reshape(1, -1) / 255.0
                 img_pca = pca.transform(img_normalized)
                 
                 # Predict
